@@ -16,8 +16,8 @@ A Flask web app for exploring U.S. congressional financial disclosures — holdi
 |--------|----------|
 | House annual disclosures (PDF) | 372 members, 2024 |
 | Senate annual disclosures (HTML) | 93 senators, 2024 |
-| SCOTUS OGE Form 278 (PDF → Markdown) | 9 justices, 2024 |
-| Trump OGE Form 278e (PDF → Markdown) | 2024 |
+| SCOTUS OGE Form 278 (PDF) | 9 justices, 2024 |
+| Presidential OGE Form 278e (PDF) | 2024 |
 | House PTRs | 2024–2026 |
 | Senate PTRs | 2024–2026 |
 | Committee memberships | unitedstates/congress-legislators |
@@ -46,7 +46,7 @@ python download_house_ptrs.py
 python download_senate_ptrs.py
 python download_committees.py
 
-# 2. Convert SCOTUS and Trump PDFs to Markdown cache
+# 2. Convert SCOTUS and presidential PDFs to text cache
 python convert_pdfs_to_md.py
 
 # 3. Build the database
@@ -82,7 +82,7 @@ python refresh.py --ptrs    # PTR transactions only
 | `download_house_ptrs.py` | Download House PTR PDFs + save manifest |
 | `download_senate_ptrs.py` | Download Senate PTR HTML |
 | `download_annual_filings.py` | Download annual filing ZIPs (House + Senate) |
-| `convert_pdfs_to_md.py` | Convert SCOTUS + Trump PDFs → Markdown cache |
+| `convert_pdfs_to_md.py` | Convert SCOTUS + presidential PDFs → text cache |
 | `update_member_list.py` | Rebuild member TSV from FD ZIP + download new PDFs |
 | `ocr_scanned_pdfs.py` | OCR scanned House PDFs via Claude vision API |
 | `refresh.py` | Full refresh orchestrator |
