@@ -1,0 +1,50 @@
+# Database files
+holdings.db
+holdings.db.bak
+congressional.db
+
+# Downloaded disclosure files (large, can be re-fetched with download scripts)
+house_pdfs_2024/
+house_pdfs_2025/
+house_pdfs_2026/
+senate_html_2024/
+senate_html_2025/
+house_ptrs_2024/
+senate_ptrs_2024/
+house_ptrs_2025/
+senate_ptrs_2025/
+house_ptrs_2026/
+senate_ptrs_2026/
+scotus_pdfs_2024/
+
+# Source PDFs
+*.pdf
+
+# Skill files
+*.skill
+
+# Test scratch files
+test_plain.txt
+test_write.db
+test_write.db-journal
+
+# Spreadsheets (generated artifacts)
+*.xlsx
+
+# Markdown caches (generated from PDFs by convert_pdfs_to_md.py)
+scotus_md_2024/
+trump_md/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Environment / secrets
+.env
+*.env
+
+# OS files
+.DS_Store
+Thumbs.db

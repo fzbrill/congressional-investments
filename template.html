@@ -1,0 +1,1467 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Congressional Investments Explorer</title>
+<style>
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --surface2: #252836;
+    --border: #2d3148; --accent: #4f7cff; --accent2: #7c5fff;
+    --text: #e2e4f0; --muted: #8b8fa8; --green: #3ecf8e; --red: #f87171;
+    --yellow: #fbbf24;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif;
+         font-size: 14px; line-height: 1.5; }
+  a { color: var(--accent); text-decoration: none; }
+
+  /* Layout */
+  .shell { display: flex; height: 100vh; overflow: hidden; }
+  .sidebar { width: 230px; background: var(--surface); border-right: 1px solid var(--border);
+             display: flex; flex-direction: column; flex-shrink: 0; }
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* Sidebar */
+  .logo { padding: 20px 16px 12px; font-weight: 700; font-size: 15px; color: var(--text);
+          border-bottom: 1px solid var(--border); line-height: 1.3; }
+  .logo span { color: var(--accent); }
+  .stats { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  .stat { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 12px; }
+  .stat .label { color: var(--muted); }
+  .stat .val { font-weight: 600; }
+  .chamber-bar { height: 3px; background: var(--border); border-radius: 2px; margin-top: 8px; overflow: hidden; display: flex; }
+  .chamber-seg { height: 100%; }
+  .nav { padding: 8px 0; flex: 1; overflow-y: auto; }
+  .nav-item { padding: 8px 16px; cursor: pointer; border-radius: 0; transition: background .15s;
+              font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-item.active { background: rgba(79,124,255,.15); color: var(--accent); font-weight: 500; }
+  .nav-label { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
+               padding: 16px 16px 4px; }
+
+  /* Header */
+  .topbar { display: flex; align-items: center; gap: 12px; padding: 12px 20px;
+            border-bottom: 1px solid var(--border); background: var(--surface); }
+  .topbar h1 { font-size: 15px; font-weight: 600; }
+  .topbar .sub { color: var(--muted); font-size: 12px; }
+  .export-btn { margin-left: auto; background: var(--surface2); border: 1px solid var(--border);
+                color: var(--text); padding: 5px 12px; border-radius: 6px; cursor: pointer;
+                font-size: 12px; transition: border-color .15s; }
+  .export-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Panels */
+  .panel { display: none; flex: 1; min-height: 0; overflow: hidden; flex-direction: column; }
+  .panel.active { display: flex; }
+
+  /* Search panel */
+  .filters { padding: 14px 20px; background: var(--surface); border-bottom: 1px solid var(--border);
+             display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+  .fgroup { display: flex; flex-direction: column; gap: 4px; }
+  .fgroup label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .fgroup input, .fgroup select {
+    background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+    padding: 6px 10px; border-radius: 6px; font-size: 13px; outline: none;
+    transition: border-color .15s; min-width: 130px;
+  }
+  .fgroup input:focus, .fgroup select:focus { border-color: var(--accent); }
+  .search-btn { background: var(--accent); color: #fff; border: none; padding: 7px 18px;
+                border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500;
+                transition: opacity .15s; }
+  .search-btn:hover { opacity: .85; }
+  .reset-btn { background: transparent; border: 1px solid var(--border); color: var(--muted);
+               padding: 7px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  .reset-btn:hover { border-color: var(--red); color: var(--red); }
+
+  /* Results */
+  .results-meta { padding: 8px 20px; font-size: 12px; color: var(--muted);
+                  border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
+  .results-meta .count { color: var(--green); font-weight: 600; }
+  .pagination { margin-left: auto; display: flex; gap: 6px; }
+  .pg-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+            padding: 3px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+  .pg-btn:disabled { opacity: .35; cursor: default; }
+  .pg-btn:not(:disabled):hover { border-color: var(--accent); }
+
+  .table-wrap { flex: 1; overflow: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th { position: sticky; top: 0; background: var(--surface); padding: 8px 12px;
+             text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .07em;
+             color: var(--muted); border-bottom: 1px solid var(--border); cursor: pointer;
+             user-select: none; white-space: nowrap; }
+  thead th:hover { color: var(--text); }
+  thead th.sort-asc::after  { content: " ▲"; color: var(--accent); }
+  thead th.sort-desc::after { content: " ▼"; color: var(--accent); }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
+  tbody tr:hover { background: var(--surface2); }
+  td { padding: 7px 12px; vertical-align: top; max-width: 280px; }
+  td.trunc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .badge { display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 6px;
+           border-radius: 4px; text-transform: uppercase; letter-spacing: .04em; }
+  .badge-House     { background: rgba(79,124,255,.2);  color: #7da7ff; }
+  .badge-Senate    { background: rgba(251,191,36,.15); color: #fbbf24; }
+  .badge-SCOTUS    { background: rgba(62,207,142,.15); color: #3ecf8e; }
+  .badge-Executive { background: rgba(248,113,113,.15);color: #f87171; }
+  .empty { text-align: center; padding: 60px 20px; color: var(--muted); }
+
+  /* SQL panel */
+  .sql-editor { padding: 16px 20px; background: var(--surface); border-bottom: 1px solid var(--border); }
+  .sql-editor h2 { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+  .sql-editor textarea {
+    width: 100%; height: 110px; background: #0d0f18; border: 1px solid var(--border);
+    color: #a8d8ff; padding: 10px 14px; border-radius: 8px; font-family: 'Cascadia Code','Fira Code',monospace;
+    font-size: 13px; resize: vertical; outline: none; transition: border-color .15s;
+  }
+  .sql-editor textarea:focus { border-color: var(--accent); }
+  .sql-actions { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+  .run-btn { background: var(--green); color: #0f1117; border: none; padding: 7px 18px;
+             border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
+  .run-btn:hover { opacity: .85; }
+  .template-select { background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+                     padding: 6px 10px; border-radius: 6px; font-size: 13px; outline: none; }
+  .error-box { background: rgba(248,113,113,.1); border: 1px solid rgba(248,113,113,.3);
+               color: var(--red); padding: 10px 14px; border-radius: 6px; font-family: monospace;
+               font-size: 12px; margin-top: 8px; display: none; }
+
+  /* Members panel */
+  .members-grid { display: flex; flex-wrap: wrap; gap: 10px; padding: 16px 20px; overflow-y: scroll; flex: 1; min-height: 0; align-content: flex-start; }
+  .member-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+                 padding: 12px 14px; min-width: 200px; cursor: pointer; transition: border-color .15s; }
+  .member-card:hover { border-color: var(--accent); }
+  .member-name { font-weight: 600; font-size: 13px; }
+  .member-meta { color: var(--muted); font-size: 11px; margin-top: 3px; }
+  .member-search { padding: 12px 20px; border-bottom: 1px solid var(--border);
+                   background: var(--surface); display: flex; gap: 8px; }
+  .member-search input { flex: 1; background: var(--surface2); border: 1px solid var(--border);
+                         color: var(--text); padding: 7px 12px; border-radius: 6px; font-size: 13px; outline: none; }
+  .member-search input:focus { border-color: var(--accent); }
+
+  /* Loading */
+  .loading { display: none; color: var(--muted); font-size: 12px; }
+  .loading.active { display: inline; }
+
+  /* Party dots */
+  .party-dot { font-size: 9px; margin-right: 3px; }
+  .party-D   { color: #60a5fa; }   /* Democrat  — blue  */
+  .party-R   { color: #f87171; }   /* Republican — red  */
+  .party-I   { color: #c4b5fd; }   /* Independent — lavender */
+
+  /* Sidebar quick-filter controls */
+  .qf-section { padding: 2px 0 6px; }
+  .qf-option { display: flex; align-items: center; gap: 9px; padding: 6px 16px;
+               cursor: pointer; font-size: 13px; color: var(--muted);
+               transition: background .12s; user-select: none; line-height: 1.3; }
+  .qf-option:hover { background: var(--surface2); color: var(--text); }
+  .qf-option input[type=radio], .qf-option input[type=checkbox] {
+    accent-color: var(--accent); cursor: pointer; width: 13px; height: 13px; flex-shrink: 0; }
+  .qf-option.is-active { color: var(--accent); background: rgba(79,124,255,.12); font-weight: 500; }
+
+  /* State picker (sidebar custom dropdown) */
+  .state-picker { margin: 2px 10px 6px; position: relative; }
+  .state-picker-btn { width: 100%; background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); padding: 7px 10px; border-radius: 6px; cursor: pointer; font-size: 13px;
+    display: flex; align-items: center; justify-content: space-between; text-align: left;
+    transition: border-color .15s; }
+  .state-picker-btn:hover, .state-picker-btn.open { border-color: var(--accent); }
+  .state-picker-btn.has-value { color: var(--accent); }
+  .state-picker-arrow { color: var(--muted); font-size: 10px; margin-left: 4px;
+    display: inline-block; transition: transform .15s; }
+  .state-picker-btn.open .state-picker-arrow { transform: rotate(180deg); }
+  .state-picker-list { position: absolute; top: calc(100% + 3px); left: 0; right: 0; z-index: 200;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+    max-height: 200px; overflow-y: auto; display: none;
+    box-shadow: 0 4px 16px rgba(0,0,0,.5); }
+  .state-picker-list.open { display: block; }
+  .state-opt { padding: 6px 12px; cursor: pointer; font-size: 12px; color: var(--muted); }
+  .state-opt:hover { background: var(--surface2); color: var(--text); }
+  .state-opt.is-active { color: var(--accent); background: rgba(79,124,255,.1); font-weight: 500; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #4a5080; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- Sidebar -->
+<div class="sidebar">
+  <div class="logo">Congressional<br><span>Investments</span> Explorer</div>
+  <div class="stats" id="stats-panel">
+    <div class="stat"><span class="label">Total holdings</span><span class="val" id="s-total">—</span></div>
+    <div class="stat"><span class="label">Members</span><span class="val" id="s-members">—</span></div>
+    <div class="chamber-bar" id="chamber-bar"></div>
+  </div>
+  <div class="nav">
+    <div class="nav-label">Views</div>
+    <div class="nav-item active" data-panel="search" onclick="switchPanel('search')">🔍 Holdings</div>
+    <div class="nav-item" data-panel="transactions" onclick="switchPanel('transactions')">💸 Transactions</div>
+    <div class="nav-item" data-panel="ask" onclick="switchPanel('ask')">🤖 Ask a Question</div>
+    <div class="nav-item" data-panel="members" onclick="switchPanel('members')">👤 Browse Members</div>
+    <div class="nav-item" data-panel="sql" onclick="switchPanel('sql')">💻 SQL Query</div>
+    <div class="nav-label">Chamber</div>
+    <div class="qf-section" id="qf-chamber-group">
+      <label class="qf-option"><input type="radio" name="qf-ch" value="" checked> All chambers</label>
+      <label class="qf-option"><input type="radio" name="qf-ch" value="Senate"> 🏛 Senate</label>
+      <label class="qf-option"><input type="radio" name="qf-ch" value="House"> 🏢 House</label>
+      <label class="qf-option"><input type="radio" name="qf-ch" value="SCOTUS"> ⚖️ SCOTUS</label>
+      <label class="qf-option"><input type="radio" name="qf-ch" value="Executive"> 🦅 Executive</label>
+    </div>
+    <div class="nav-label">Party</div>
+    <div class="qf-section" id="qf-party-group">
+      <label class="qf-option"><input type="radio" name="qf-party" value="" checked> All parties</label>
+      <label class="qf-option"><input type="radio" name="qf-party" value="Democrat"> 🔵 Democrat</label>
+      <label class="qf-option"><input type="radio" name="qf-party" value="Republican"> 🔴 Republican</label>
+      <label class="qf-option"><input type="radio" name="qf-party" value="Independent"> 🟣 Independent</label>
+    </div>
+    <div class="nav-label">State</div>
+    <div class="qf-section">
+      <div class="state-picker" id="qf-state-picker" data-val="">
+        <button class="state-picker-btn" id="qf-state-btn" onclick="toggleStatePicker(event)">
+          <span id="qf-state-display">All states</span>
+          <span class="state-picker-arrow">▾</span>
+        </button>
+        <div class="state-picker-list" id="qf-state-list">
+          <div class="state-opt is-active" data-val="" onclick="pickState('')">All states</div>
+      <div class="state-opt" data-val="AK" onclick="pickState('AK')">AK — Alaska</div>
+      <div class="state-opt" data-val="AL" onclick="pickState('AL')">AL — Alabama</div>
+      <div class="state-opt" data-val="AR" onclick="pickState('AR')">AR — Arkansas</div>
+      <div class="state-opt" data-val="AZ" onclick="pickState('AZ')">AZ — Arizona</div>
+      <div class="state-opt" data-val="CA" onclick="pickState('CA')">CA — California</div>
+      <div class="state-opt" data-val="CO" onclick="pickState('CO')">CO — Colorado</div>
+      <div class="state-opt" data-val="CT" onclick="pickState('CT')">CT — Connecticut</div>
+      <div class="state-opt" data-val="DC" onclick="pickState('DC')">DC — D.C.</div>
+      <div class="state-opt" data-val="DE" onclick="pickState('DE')">DE — Delaware</div>
+      <div class="state-opt" data-val="FL" onclick="pickState('FL')">FL — Florida</div>
+      <div class="state-opt" data-val="GA" onclick="pickState('GA')">GA — Georgia</div>
+      <div class="state-opt" data-val="HI" onclick="pickState('HI')">HI — Hawaii</div>
+      <div class="state-opt" data-val="IA" onclick="pickState('IA')">IA — Iowa</div>
+      <div class="state-opt" data-val="ID" onclick="pickState('ID')">ID — Idaho</div>
+      <div class="state-opt" data-val="IL" onclick="pickState('IL')">IL — Illinois</div>
+      <div class="state-opt" data-val="IN" onclick="pickState('IN')">IN — Indiana</div>
+      <div class="state-opt" data-val="KS" onclick="pickState('KS')">KS — Kansas</div>
+      <div class="state-opt" data-val="KY" onclick="pickState('KY')">KY — Kentucky</div>
+      <div class="state-opt" data-val="LA" onclick="pickState('LA')">LA — Louisiana</div>
+      <div class="state-opt" data-val="MA" onclick="pickState('MA')">MA — Massachusetts</div>
+      <div class="state-opt" data-val="MD" onclick="pickState('MD')">MD — Maryland</div>
+      <div class="state-opt" data-val="ME" onclick="pickState('ME')">ME — Maine</div>
+      <div class="state-opt" data-val="MI" onclick="pickState('MI')">MI — Michigan</div>
+      <div class="state-opt" data-val="MN" onclick="pickState('MN')">MN — Minnesota</div>
+      <div class="state-opt" data-val="MO" onclick="pickState('MO')">MO — Missouri</div>
+      <div class="state-opt" data-val="MS" onclick="pickState('MS')">MS — Mississippi</div>
+      <div class="state-opt" data-val="MT" onclick="pickState('MT')">MT — Montana</div>
+      <div class="state-opt" data-val="NC" onclick="pickState('NC')">NC — N. Carolina</div>
+      <div class="state-opt" data-val="ND" onclick="pickState('ND')">ND — N. Dakota</div>
+      <div class="state-opt" data-val="NE" onclick="pickState('NE')">NE — Nebraska</div>
+      <div class="state-opt" data-val="NH" onclick="pickState('NH')">NH — New Hampshire</div>
+      <div class="state-opt" data-val="NJ" onclick="pickState('NJ')">NJ — New Jersey</div>
+      <div class="state-opt" data-val="NM" onclick="pickState('NM')">NM — New Mexico</div>
+      <div class="state-opt" data-val="NV" onclick="pickState('NV')">NV — Nevada</div>
+      <div class="state-opt" data-val="NY" onclick="pickState('NY')">NY — New York</div>
+      <div class="state-opt" data-val="OH" onclick="pickState('OH')">OH — Ohio</div>
+      <div class="state-opt" data-val="OK" onclick="pickState('OK')">OK — Oklahoma</div>
+      <div class="state-opt" data-val="OR" onclick="pickState('OR')">OR — Oregon</div>
+      <div class="state-opt" data-val="PA" onclick="pickState('PA')">PA — Pennsylvania</div>
+      <div class="state-opt" data-val="RI" onclick="pickState('RI')">RI — Rhode Island</div>
+      <div class="state-opt" data-val="SC" onclick="pickState('SC')">SC — S. Carolina</div>
+      <div class="state-opt" data-val="SD" onclick="pickState('SD')">SD — S. Dakota</div>
+      <div class="state-opt" data-val="TN" onclick="pickState('TN')">TN — Tennessee</div>
+      <div class="state-opt" data-val="TX" onclick="pickState('TX')">TX — Texas</div>
+      <div class="state-opt" data-val="UT" onclick="pickState('UT')">UT — Utah</div>
+      <div class="state-opt" data-val="VA" onclick="pickState('VA')">VA — Virginia</div>
+      <div class="state-opt" data-val="VT" onclick="pickState('VT')">VT — Vermont</div>
+      <div class="state-opt" data-val="WA" onclick="pickState('WA')">WA — Washington</div>
+      <div class="state-opt" data-val="WI" onclick="pickState('WI')">WI — Wisconsin</div>
+      <div class="state-opt" data-val="WV" onclick="pickState('WV')">WV — West Virginia</div>
+      <div class="state-opt" data-val="WY" onclick="pickState('WY')">WY — Wyoming</div>
+        </div>
+      </div>
+    </div>
+    <div class="nav-label">Member</div>
+    <div class="qf-section">
+      <div class="state-picker" id="qf-member-picker" data-last="" data-first="">
+        <button class="state-picker-btn" id="qf-member-btn" onclick="toggleMemberPicker(event)">
+          <span id="qf-member-display">All members</span>
+          <span class="state-picker-arrow">&#9662;</span>
+        </button>
+        <div class="state-picker-list" id="qf-member-list" style="display:none;max-height:260px">
+          <input type="text" id="qf-member-search" placeholder="Search members&#8230;"
+                 oninput="filterMemberOptions(this.value)" onclick="event.stopPropagation()"
+                 style="width:100%;box-sizing:border-box;padding:4px 6px;margin-bottom:4px;
+                        background:var(--bg2);border:1px solid var(--border);
+                        color:var(--fg);border-radius:4px;font-size:12px">
+          <div id="qf-member-options"><div class="state-opt is-active" onclick="pickMember(\'\',\'\')">All members</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Main -->
+<div class="main">
+
+  <!-- SEARCH PANEL -->
+  <div class="panel active" id="panel-search">
+    <div class="topbar">
+      <div>
+        <h1>Holdings</h1>
+        <div class="sub">Filter by member, asset, chamber, or type</div>
+      </div>
+      <button class="export-btn" onclick="exportCSV()">⬇ Export CSV</button>
+    </div>
+    <div class="filters">
+      <div class="fgroup">
+        <label>Member name</label>
+        <input id="f-member" type="text" placeholder="e.g. Pelosi" onkeydown="if(event.key==='Enter')doSearch()">
+      </div>
+      <div class="fgroup">
+        <label>Asset / Ticker</label>
+        <input id="f-asset" type="text" placeholder="e.g. Apple, AAPL" onkeydown="if(event.key==='Enter')doSearch()">
+      </div>
+      <div class="fgroup">
+        <label>Chamber</label>
+        <select id="f-chamber">
+          <option value="">All chambers</option>
+          <option>House</option>
+          <option>Senate</option>
+          <option>SCOTUS</option>
+          <option>Executive</option>
+        </select>
+      </div>
+      <div class="fgroup">
+        <label>Asset type</label>
+        <select id="f-atype">
+          <option value="">Any type</option>
+        </select>
+        <input type="hidden" id="f-atype-cb" value="">
+      </div>
+      <div class="fgroup">
+        <label>State</label>
+        <select id="f-state">
+          <option value="">All states</option>
+          <option>AK</option><option>AL</option><option>AR</option><option>AZ</option>
+          <option>CA</option><option>CO</option><option>CT</option><option>DC</option>
+          <option>DE</option><option>FL</option><option>GA</option><option>HI</option>
+          <option>IA</option><option>ID</option><option>IL</option><option>IN</option>
+          <option>KS</option><option>KY</option><option>LA</option><option>MA</option>
+          <option>MD</option><option>ME</option><option>MI</option><option>MN</option>
+          <option>MO</option><option>MS</option><option>MT</option><option>NC</option>
+          <option>ND</option><option>NE</option><option>NH</option><option>NJ</option>
+          <option>NM</option><option>NV</option><option>NY</option><option>OH</option>
+          <option>OK</option><option>OR</option><option>PA</option><option>RI</option>
+          <option>SC</option><option>SD</option><option>TN</option><option>TX</option>
+          <option>UT</option><option>VA</option><option>VT</option><option>WA</option>
+          <option>WI</option><option>WV</option><option>WY</option>
+        </select>
+      </div>
+      <button class="search-btn" onclick="doSearch()">Search</button>
+      <button class="reset-btn" onclick="resetSearch()">Reset</button>
+    </div>
+    <div class="results-meta">
+      <span class="loading" id="search-loading">Searching…</span>
+      <span id="results-count"></span>
+      <span id="search-visible-range" style="margin-left:auto;font-size:12px;color:var(--muted);"></span>
+    </div>
+    <div class="table-wrap" id="search-wrap">
+      <table id="results-table">
+        <thead>
+          <tr>
+            <th onclick="sortBy('chamber')" data-col="chamber">Chamber</th>
+            <th onclick="sortBy('last_name')" data-col="last_name">Member</th>
+            <th>Party</th>
+            <th onclick="sortBy('state')" data-col="state">State</th>
+            <th onclick="sortBy('asset')" data-col="asset" style="min-width:220px">Asset</th>
+            <th onclick="sortBy('asset_type')" data-col="asset_type">Type</th>
+            <th onclick="sortBy('owner')" data-col="owner">Owner</th>
+            <th onclick="sortBy('value')" data-col="value">Value</th>
+            <th onclick="sortBy('income_type')" data-col="income_type">Income</th>
+          </tr>
+        </thead>
+        <tbody id="results-body">
+          <tr><td colspan="8" class="empty">Loading…</td></tr>
+        </tbody>
+      </table>
+      <div id="search-sentinel" style="height:1px"></div>
+    </div>
+  </div>
+
+  <!-- TRANSACTIONS PANEL -->
+  <div class="panel" id="panel-transactions">
+    <div class="topbar">
+      <div>
+        <h1>Recent Transactions</h1>
+        <div class="sub">STOCK Act PTR filings — last 12 months</div>
+      </div>
+      <button class="export-btn" onclick="exportTxCSV()">⬇ Export CSV</button>
+    </div>
+    <div class="filters">
+      <div class="fgroup">
+        <label>Member name</label>
+        <input id="tx-member" type="text" placeholder="e.g. Pelosi" onkeydown="if(event.key==='Enter')doTxSearch()">
+      </div>
+      <div class="fgroup">
+        <label>Asset / Ticker</label>
+        <input id="tx-asset" type="text" placeholder="e.g. NVDA, Apple" onkeydown="if(event.key==='Enter')doTxSearch()">
+      </div>
+      <div class="fgroup">
+        <label>Chamber</label>
+        <select id="tx-chamber">
+          <option value="">All</option>
+          <option>House</option>
+          <option>Senate</option>
+          <option>SCOTUS</option>
+          <option>Executive</option>
+        </select>
+      </div>
+      <div class="fgroup">
+        <label>Type</label>
+        <select id="tx-type">
+          <option value="">All types</option>
+          <option>Purchase</option>
+          <option>Sale (Full)</option>
+          <option>Sale (Partial)</option>
+          <option>Exchange</option>
+        </select>
+      </div>
+      <div class="fgroup">
+        <label>Date from</label>
+        <input id="tx-date-from" type="date" style="min-width:130px" onkeydown="if(event.key==='Enter')doTxSearch()">
+      </div>
+      <div class="fgroup">
+        <label>Date to</label>
+        <input id="tx-date-to" type="date" style="min-width:130px" onkeydown="if(event.key==='Enter')doTxSearch()">
+      </div>
+      <button class="search-btn" onclick="doTxSearch()">Search</button>
+      <button class="reset-btn" onclick="resetTxSearch()">Reset</button>
+    </div>
+    <div class="results-meta">
+      <span class="loading" id="tx-loading">Loading…</span>
+      <span id="tx-count"></span>
+      <span id="tx-visible-range" style="margin-left:auto;font-size:12px;color:var(--muted);"></span>
+    </div>
+    <div class="table-wrap" id="tx-wrap">
+      <table id="tx-table">
+        <thead>
+          <tr>
+            <th onclick="sortTxBy('chamber')" data-col="chamber">Chamber</th>
+            <th onclick="sortTxBy('last_name')" data-col="last_name">Member</th>
+            <th>Party</th>
+            <th onclick="sortTxBy('state')" data-col="state">St</th>
+            <th onclick="sortTxBy('transaction_date')" data-col="transaction_date">Date</th>
+            <th onclick="sortTxBy('asset')" data-col="asset" style="min-width:200px">Asset</th>
+            <th onclick="sortTxBy('asset_type')" data-col="asset_type">Type</th>
+            <th onclick="sortTxBy('transaction_type')" data-col="transaction_type">Transaction</th>
+            <th onclick="sortTxBy('amount')" data-col="amount">Amount</th>
+            <th onclick="sortTxBy('ticker')" data-col="ticker">Ticker</th>
+          </tr>
+        </thead>
+        <tbody id="tx-body">
+          <tr><td colspan="9" class="empty">Loading transactions…</td></tr>
+        </tbody>
+      </table>
+      <div id="tx-sentinel" style="height:1px"></div>
+    </div>
+  </div>
+
+  <!-- ASK PANEL -->
+  <div class="panel" id="panel-ask">
+    <div class="topbar">
+      <div>
+        <h1>Ask a Question</h1>
+        <div class="sub">Natural language → SQL → answer (requires ANTHROPIC_API_KEY)</div>
+      </div>
+    </div>
+    <div class="sql-editor" style="padding:20px;">
+      <div style="margin-bottom:12px;">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px;">
+          Try: "What financial interests do House members have in social media companies?"
+        </div>
+        <div id="ask-examples" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;"></div>
+        <div style="display:flex;gap:8px;">
+          <input id="ask-input" type="text" placeholder="Ask anything about the holdings or transactions…"
+            style="flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--text);
+                   padding:10px 14px;border-radius:8px;font-size:14px;outline:none;"
+            onkeydown="if(event.key==='Enter')submitAsk()"
+            onfocus="this.style.borderColor='var(--accent)'"
+            onblur="this.style.borderColor='var(--border)'">
+          <button class="run-btn" onclick="submitAsk()" style="white-space:nowrap">Ask →</button>
+        </div>
+      </div>
+      <div id="ask-loading" class="loading">Thinking…</div>
+      <div id="ask-error" class="error-box"></div>
+    </div>
+    <div style="flex:1;overflow:auto;padding:0 20px 20px;">
+      <div id="ask-answer" style="display:none;background:var(--surface);border:1px solid var(--border);
+           border-radius:8px;padding:16px 20px;margin-bottom:16px;">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px;" id="ask-q-display"></div>
+        <div id="ask-answer-text" style="line-height:1.7;white-space:pre-wrap;"></div>
+        <div id="ask-caveats" style="margin-top:10px;font-size:12px;color:var(--yellow);display:none;"></div>
+        <details style="margin-top:12px;">
+          <summary style="cursor:pointer;font-size:12px;color:var(--muted)">Show generated SQL</summary>
+          <pre id="ask-sql" style="background:#0d0f18;padding:10px 14px;border-radius:6px;
+               font-size:12px;color:#a8d8ff;margin-top:8px;overflow-x:auto;"></pre>
+        </details>
+      </div>
+      <div id="ask-table-wrap" style="display:none;">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px;" id="ask-row-count"></div>
+        <table id="ask-table" style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead id="ask-thead"></thead>
+          <tbody id="ask-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- MEMBERS PANEL -->
+  <div class="panel" id="panel-members">
+    <div class="topbar">
+      <div><h1>Browse Members</h1><div class="sub">Click a member to see their holdings</div></div>
+      <span id="members-count" style="font-size:13px;color:var(--muted);margin-left:auto;align-self:center;"></span>
+    </div>
+        <div class="member-search">
+      <input id="member-q" type="text" placeholder="Search by name…" oninput="loadMembers()" autocomplete="off">
+    </div>
+    <div class="members-grid" id="members-grid">
+      <div class="empty">Loading members…</div>
+    </div>
+  </div>
+
+  <!-- SQL PANEL -->
+  <div class="panel" id="panel-sql">
+    <div class="topbar">
+      <div><h1>SQL Query</h1><div class="sub">SELECT-only • tables: <code style="color:var(--accent)">holdings</code> <code style="color:var(--accent)">transactions</code> <code style="color:var(--accent)">committees</code> <code style="color:var(--accent)">committee_members</code></div></div>
+      <button class="export-btn" onclick="exportSqlCSV()">⬇ Export CSV</button>
+    </div>
+    <div class="sql-editor">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <h2>Query</h2>
+        <select class="template-select" id="template-select" onchange="loadTemplate()">
+          <option value="">— Load a template —</option>
+          <optgroup label="Holdings">
+          <option value="top10">Top 10 members by holdings count</option>
+          <option value="highval">Highest-value holdings ($1M+)</option>
+          <option value="stocks">All stock holdings</option>
+          <option value="realestate">Real estate holdings</option>
+          <option value="hedgefunds">Hedge fund investments</option>
+          <option value="scotus">SCOTUS holdings</option>
+          <option value="executive">Executive branch holdings</option>
+          <option value="senate_stocks">Senate stock holdings</option>
+          <option value="by_chamber">Count by chamber + type</option>
+          <option value="income_cg">Holdings with capital gains income</option>
+          <option value="search_ticker">Search for a specific stock (edit ticker)</option>
+          </optgroup>
+          <optgroup label="Transactions">
+          <option value="recent_tx">Recent purchases (2025)</option>
+          <option value="big_tx">Largest transaction amounts</option>
+          <option value="tx_member">Transactions for one member (edit name)</option>
+          </optgroup>
+          <optgroup label="Committees">
+          <option value="committee_holdings">Holdings of a committee's members (edit name)</option>
+          <option value="financial_svc">Financial Services Committee holdings</option>
+          <option value="armed_svc">Armed Services Committee holdings</option>
+          </optgroup>
+        </select>
+      </div>
+      <textarea id="sql-input" spellcheck="false"
+        onkeydown="if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){event.preventDefault();runSQL()}">SELECT chamber, last_name, first_name, asset, value, income_type
+FROM holdings
+ORDER BY chamber, last_name
+LIMIT 50;</textarea>
+      <div class="sql-actions">
+        <button class="run-btn" onclick="runSQL()">▶ Run Query</button>
+        <span class="loading" id="sql-loading">Running…</span>
+        <span id="sql-count" style="font-size:12px;color:var(--muted);margin-left:auto;"></span>
+      </div>
+      <div class="error-box" id="sql-error"></div>
+    </div>
+    <div class="table-wrap">
+      <table id="sql-table">
+        <thead id="sql-thead"></thead>
+        <tbody id="sql-tbody">
+          <tr><td colspan="6" class="empty">Results will appear here after you run a query</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- .main -->
+</div><!-- .shell -->
+
+<script>
+// ── State ───────────────────────────────────────────────────────────────────
+const BATCH_SIZE = 200;
+let searchOffset = 0, searchTotal = 0, searchLoading = false, searchDone = false;
+let sortCol = null, sortDir = 1;
+let lastParams = {};
+let sqlResults = null;
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+async function init() {
+  try {
+    const r = await fetch('/api/stats');
+    if (!r.ok) throw new Error('stats ' + r.status);
+    const s = await r.json();
+    document.getElementById('s-total').textContent = s.total.toLocaleString();
+    document.getElementById('s-members').textContent = s.members.toLocaleString();
+
+    const colors = {'House':'#4f7cff','Senate':'#fbbf24','Executive':'#f87171','SCOTUS':'#3ecf8e'};
+    const bar = document.getElementById('chamber-bar');
+    s.chambers.forEach(c => {
+      const seg = document.createElement('div');
+      seg.className = 'chamber-seg';
+      seg.style.background = colors[c.chamber] || '#888';
+      seg.style.width = (c.count / s.total * 100) + '%';
+      seg.title = `${c.chamber}: ${c.count.toLocaleString()}`;
+      bar.appendChild(seg);
+    });
+  } catch(e) {
+    document.getElementById('s-total').textContent = '–';
+    document.getElementById('s-members').textContent = '–';
+    document.getElementById('results-count').textContent =
+      '⚠️ Database is empty — run build_db.py then restart the server.';
+    document.getElementById('search-loading').classList.remove('active');
+    return;
+  }
+
+  try {
+    // Load asset types
+    const types = await fetch('/api/asset_types').then(r => r.json());
+    const sel = document.getElementById('f-atype');
+    types.forEach(t => { const o = document.createElement('option'); o.value = t; o.textContent = t; sel.appendChild(o); });
+  } catch(e) { /* non-fatal */ }
+
+  syncSidebar();
+  await doSearch();
+}
+
+// ── Navigation ───────────────────────────────────────────────────────────────
+function switchPanel(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item[data-panel]').forEach(n => n.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  document.querySelector(`[data-panel="${name}"]`).classList.add('active');
+  // Sync sidebar chamber to the target panel's chamber field before loading
+  const chRadio = document.querySelector('[name="qf-ch"]:checked');
+  const chamberVal = chRadio ? chRadio.value : '';
+  if (name === 'search')       document.getElementById('f-chamber').value = chamberVal;
+  if (name === 'transactions') document.getElementById('tx-chamber').value = chamberVal;
+  // Always reload the panel so it reflects current sidebar filters
+  if      (name === 'members')      loadMembers();
+  else if (name === 'transactions') doTxSearch();
+  else if (name === 'search')       doSearch();
+}
+
+// ── Sidebar quick-filter wiring ──────────────────────────────────────────────
+// Reads sidebar radio/checkbox state, pushes to main form fields, then searches.
+function applyQfFilters() {
+  // Chamber radio → push to both search and transactions panel fields
+  const chRadio = document.querySelector('[name="qf-ch"]:checked');
+  const chamberVal = chRadio ? chRadio.value : '';
+  document.getElementById('f-chamber').value = chamberVal;
+  document.getElementById('tx-chamber').value = chamberVal;
+
+
+  // Highlight active labels
+  document.querySelectorAll('#qf-chamber-group .qf-option').forEach(lbl => {
+    const inp = lbl.querySelector('input');
+    lbl.classList.toggle('is-active', inp.checked && inp.value !== '');
+  });
+  document.querySelectorAll('#qf-party-group .qf-option').forEach(lbl => {
+    const inp = lbl.querySelector('input');
+    lbl.classList.toggle('is-active', inp.checked && inp.value !== '');
+  });
+
+  const sidebarState = document.getElementById('qf-state-picker')?.dataset.val || '';
+  document.getElementById('f-state').value = sidebarState;
+
+  // Reload whichever panel is currently active — never force-switch panels
+  // Clear member selection and refresh picker list when chamber/party/state changes
+  const _mp = document.getElementById('qf-member-picker');
+  if (_mp && _mp.dataset.last) {
+    _mp.dataset.last = ''; _mp.dataset.first = '';
+    const _md = document.getElementById('qf-member-display');
+    if (_md) _md.textContent = 'All members';
+    const fm = document.getElementById('f-member');
+    const tm = document.getElementById('tx-member');
+    if (fm) fm.value = ''; if (tm) tm.value = '';
+  }
+  loadMemberPicker();
+
+  const activePanel = document.querySelector('.panel.active')?.id;
+  if      (activePanel === 'panel-members')      loadMembers();
+  else if (activePanel === 'panel-transactions') doTxSearch();
+  else if (activePanel === 'panel-search')       doSearch();
+}
+
+// Sync sidebar controls to match whatever is currently in the main form fields
+function syncSidebar() {
+  const chamberVal = document.getElementById('f-chamber').value;
+  document.querySelectorAll('[name="qf-ch"]').forEach(r => {
+    r.checked = (r.value === chamberVal);
+  });
+  // Refresh active highlights
+  document.querySelectorAll('#qf-chamber-group .qf-option').forEach(lbl => {
+    const inp = lbl.querySelector('input');
+    lbl.classList.toggle('is-active', inp.checked && inp.value !== '');
+  });
+}
+
+// Wire up events
+document.querySelectorAll('[name="qf-ch"]').forEach(r =>
+  r.addEventListener('change', applyQfFilters));
+loadMemberPicker();
+document.querySelectorAll('[name="qf-party"]').forEach(r =>
+  r.addEventListener('change', applyQfFilters));
+
+// Owner code lookup
+const OWNER_LABELS = { SP: 'Spouse', JT: 'Joint', DC: 'Dep. Child', '': 'Self' };
+
+// Party affiliation dot
+
+const SCOTUS_PARTY = {
+  roberts:'R', thomas:'R', alito:'R',
+  sotomayor:'D', kagan:'D',
+  gorsuch:'R', kavanaugh:'R', barrett:'R', jackson:'D'
+};
+function scotusParty(last) {
+  const p = SCOTUS_PARTY[(last||'').toLowerCase()];
+  return p === 'R' ? 'Republican' : p === 'D' ? 'Democrat' : '';
+}
+
+function partyDot(party) {
+  if (!party) return '';
+  const p = party.charAt(0).toUpperCase();
+  const cls = p === 'D' ? 'party-D' : p === 'R' ? 'party-R' : 'party-I';
+  return `<span class="party-dot ${cls}" title="${esc(party)}">●</span>`;
+}
+function partyBadge(p) {
+  if (!p) return '';
+  const col = {Democrat:'#60a5fa',Republican:'#f87171',Independent:'#c4b5fd'}[p] || 'var(--muted)';
+  const lbl = {Democrat:'Dem',Republican:'Rep',Independent:'Ind'}[p] || p;
+  return `<span style="color:${col};font-weight:700;font-size:11px">${lbl}</span>`;
+}
+function toTitleCase(s) {
+  if (!s) return s;
+  return s.replace(/\w\S*/g, w => {
+    if (/^mc/i.test(w) && w.length > 2) return 'Mc' + w[2].toUpperCase() + w.slice(3).toLowerCase();
+    if (/^mac/i.test(w) && w.length > 3 && w[3] !== 'k') return 'Mac' + w[3].toUpperCase() + w.slice(4).toLowerCase();
+    return w[0].toUpperCase() + w.slice(1).toLowerCase();
+  }).replace(/-\w/g, m => m.toUpperCase());
+}
+function dispFirst(raw, canonical) {
+  if (canonical) return canonical;
+  return toTitleCase((raw||'').replace(/^Hon\.+\s*/i,'').trim());
+}
+function dispLast(raw) { return toTitleCase(raw||''); }
+
+
+// ── Member picker ─────────────────────────────────────────────────────────────
+let _memberPickerData = [];
+
+async function loadMemberPicker() {
+  const chamber = document.querySelector('[name="qf-ch"]:checked')?.value || '';
+  const party   = document.querySelector('[name="qf-party"]:checked')?.value || '';
+  const state   = document.getElementById('qf-state-picker')?.dataset.val || '';
+  const params  = new URLSearchParams();
+  if (chamber) params.set('chamber', chamber);
+  if (party)   params.set('party',   party);
+  if (state)   params.set('state',   state);
+  try {
+    _memberPickerData = await fetch('/api/members?' + params).then(r => r.json());
+  } catch(e) { _memberPickerData = []; }
+  renderMemberOptions(_memberPickerData);
+}
+
+function renderMemberOptions(list) {
+  const picker  = document.getElementById('qf-member-picker');
+  const curLast = picker ? picker.dataset.last  : '';
+  const curFst  = picker ? picker.dataset.first : '';
+  let html = '<div class="state-opt ' + (!curLast ? 'is-active' : '') + '" onclick="pickMember(\'\',\'\')">All members</div>';
+  for (const m of list) {
+    const active = m.last_name === curLast && m.first_name === curFst;
+    const ep = m.chamber === 'SCOTUS' ? scotusParty(m.last_name) : m.party;
+    const dot = partyDot(ep);
+    const ln = dispLast(m.last_name), fn = dispFirst(m.first_name, null);
+    html += '<div class="state-opt ' + (active ? 'is-active' : '') + '" onclick="pickMember(\'' + esc(m.last_name) + '\',\'' + esc(m.first_name) + '\')">' + (dot ? dot + ' ' : '') + esc(ln) + ', ' + esc(fn) + '</div>';
+  }
+  const el = document.getElementById('qf-member-options');
+  if (el) el.innerHTML = html;
+}
+
+function filterMemberOptions(q) {
+  const lq = (q || '').toLowerCase();
+  const filtered = lq
+    ? _memberPickerData.filter(m =>
+        (m.last_name||'').toLowerCase().includes(lq) ||
+        (m.first_name||'').toLowerCase().includes(lq))
+    : _memberPickerData;
+  renderMemberOptions(filtered);
+}
+
+function toggleMemberPicker(e) {
+  e.stopPropagation();
+  const list = document.getElementById('qf-member-list');
+  const stList = document.getElementById('qf-state-list');
+  if (stList) stList.style.display = 'none';
+  const opening = list.style.display !== 'block';
+  list.style.display = opening ? 'block' : 'none';
+  if (opening) {
+    const ms = document.getElementById('qf-member-search');
+    if (ms) { ms.value = ''; setTimeout(() => ms.focus(), 40); }
+    renderMemberOptions(_memberPickerData);
+  }
+}
+
+function pickMember(last, first) {
+  const picker = document.getElementById('qf-member-picker');
+  if (!picker) return;
+  picker.dataset.last = last; picker.dataset.first = first;
+  document.getElementById('qf-member-display').textContent =
+    last ? dispLast(last) + ', ' + dispFirst(first, null) : 'All members';
+  document.getElementById('qf-member-list').style.display = 'none';
+  renderMemberOptions(_memberPickerData);
+  const memberStr = last ? last + ', ' + first : '';
+  const fm = document.getElementById('f-member');
+  const tm = document.getElementById('tx-member');
+  if (fm) fm.value = memberStr;
+  if (tm) tm.value = memberStr;
+  const activePanel = document.querySelector('.panel.active')?.id;
+  if      (activePanel === 'panel-search')       doSearch();
+  else if (activePanel === 'panel-transactions') doTxSearch();
+  else if (activePanel === 'panel-members')      loadMembers();
+}
+
+// ── Search ───────────────────────────────────────────────────────────────────
+async function doSearch() {
+  searchOffset = 0; searchDone = false;
+  document.getElementById('results-body').innerHTML = '';
+  document.getElementById('results-count').textContent = '';
+  document.getElementById('search-visible-range').textContent = '';
+  await _fetchSearchBatch();
+}
+
+async function _fetchSearchBatch() {
+  if (searchLoading || searchDone) return;
+  searchLoading = true;
+  const params = {
+    member:  document.getElementById('f-member').value,
+    asset:   document.getElementById('f-asset').value,
+    chamber: document.getElementById('f-chamber').value,
+    asset_type: (document.getElementById('f-atype-cb').value || document.getElementById('f-atype').value),
+    party:   document.querySelector('[name="qf-party"]:checked')?.value || '',
+    state:   document.getElementById('f-state').value,
+    sort_col: sortCol || '',
+    sort_dir: sortDir > 0 ? 'asc' : 'desc',
+    limit: BATCH_SIZE,
+    offset: searchOffset
+  };
+  lastParams = {...params};
+  document.getElementById('search-loading').classList.add('active');
+  const qs = new URLSearchParams(params).toString();
+  const data = await fetch('/api/search?' + qs).then(r => r.json());
+  document.getElementById('search-loading').classList.remove('active');
+  searchTotal = data.total;
+  if (!data.rows.length && searchOffset === 0) {
+    document.getElementById('results-body').innerHTML = '<tr><td colspan="9" class="empty">No results found</td></tr>';
+    searchLoading = false; searchDone = true;
+    updateSearchMeta(); return;
+  }
+  appendSearchRows(data.rows);
+  searchOffset += data.rows.length;
+  if (data.rows.length < BATCH_SIZE || searchOffset >= searchTotal) searchDone = true;
+  searchLoading = false;
+  updateSearchMeta();
+}
+
+function updateSearchMeta() {
+  const base = `<span class="count">${searchTotal.toLocaleString()}</span> ${searchTotal === 1 ? 'result' : 'results'}`;
+  const loaded = searchOffset < searchTotal
+    ? ` — loaded ${searchOffset.toLocaleString()} / ${searchTotal.toLocaleString()}`
+    : '';
+  document.getElementById('results-count').innerHTML = base + (searchTotal > BATCH_SIZE ? loaded : '');
+}
+
+function updateSearchVisibleRange() {
+  const wrap = document.getElementById('search-wrap');
+  if (!wrap || !searchTotal) return;
+  const rows = wrap.querySelectorAll('tbody tr');
+  if (!rows.length) return;
+  const top = wrap.scrollTop, bot = top + wrap.clientHeight;
+  let first = null, last = null;
+  for (let i = 0; i < rows.length; i++) {
+    const rt = rows[i].offsetTop, rb = rt + rows[i].offsetHeight;
+    if (rb > top && rt < bot) { if (first === null) first = i + 1; last = i + 1; }
+    else if (first !== null) break;
+  }
+  document.getElementById('search-visible-range').textContent =
+    (searchTotal > 20 && first !== null)
+      ? `Viewing ${first.toLocaleString()}–${last.toLocaleString()} of ${searchTotal.toLocaleString()}` : '';
+}
+
+function resetSearch() {
+  document.getElementById('f-member').value = '';
+  document.getElementById('f-asset').value = '';
+  document.getElementById('f-chamber').value = '';
+  document.getElementById('f-atype').value = '';
+  document.getElementById('f-atype-cb').value = '';
+  document.getElementById('f-state').value = '';
+  syncSidebar();
+  doSearch();
+}
+
+
+
+function appendSearchRows(rows) {
+  const tbody = document.getElementById('results-body');
+  const chamberColor = {House:'badge-House',Senate:'badge-Senate',SCOTUS:'badge-SCOTUS',Executive:'badge-Executive'};
+  const html = rows.map(r => {
+    const dL = dispLast(r.last_name);
+    const dF = dispFirst(r.first_name, r.display_first);
+    const effParty = r.chamber === 'SCOTUS' ? scotusParty(r.last_name) : r.party;
+    return `<tr>
+    <td><span class="badge ${chamberColor[r.chamber]||''}">${r.chamber||''}</span></td>
+    <td class="trunc" style="max-width:140px">${esc(dL)}, ${esc(dF)}</td>
+    <td style="white-space:nowrap">${partyBadge(effParty)}</td>
+    <td>${esc(r.state||'')}</td>
+    <td class="trunc" title="${esc(r.asset||'')}">${esc(r.asset||'')}</td>
+    <td class="trunc" style="max-width:140px;color:var(--muted)" title="${esc(r.asset_type||'')}">${esc(r.asset_type||'')}</td>
+    <td style="color:var(--muted);font-size:12px" title="${esc(r.owner||'')}">${esc(OWNER_LABELS[r.owner] ?? r.owner ?? '')}</td>
+    <td style="white-space:nowrap;color:var(--yellow)">${esc((r.value||'').replace(/\n/g,' '))}</td>
+    <td style="color:var(--muted);font-size:11px">${esc((r.income_type||'').replace(/\n/g,' '))}</td>
+  </tr>`;}).join('');
+  tbody.insertAdjacentHTML('beforeend', html);
+}
+
+// ── Members ──────────────────────────────────────────────────────────────────
+let memberDebounce;
+async function loadMembers() {
+  clearTimeout(memberDebounce);
+  memberDebounce = setTimeout(async () => {
+    const q       = document.getElementById('member-q').value;
+    const state   = document.getElementById('qf-state-picker')?.dataset.val || '';
+    const chRadio = document.querySelector('[name="qf-ch"]:checked');
+    const ptRadio = document.querySelector('[name="qf-party"]:checked');
+    const chamber = chRadio ? chRadio.value : '';
+    const party   = ptRadio ? ptRadio.value : '';
+    const qs = new URLSearchParams({q, chamber, state, party}).toString();
+    const data = await fetch('/api/members?' + qs).then(r => r.json());
+    const grid = document.getElementById('members-grid');
+    const partyColors = { D: '#60a5fa', R: '#f87171', I: '#c4b5fd' };
+    const pcOf = p => {
+      if (!p) return 'var(--muted)';
+      return partyColors[p.charAt(0).toUpperCase()] || 'var(--muted)';
+    };
+    const countEl = document.getElementById('members-count');
+    if (countEl) countEl.textContent = data.length ? data.length + ' members' : '';
+    grid.innerHTML = data.map(m => {
+      const PA = {Democrat:'Dem', Republican:'Rep', Independent:'Ind'};
+      const pc = {Democrat:'#60a5fa',Republican:'#f87171',Independent:'#c4b5fd'}[m.party] || '';
+      const pLabel = p => (p && (PA[p] || p)) || '';
+      const pHtml = pc ? `<b style="color:${pc}">${pLabel(m.party)}</b>` : '';
+      const fn = dispFirst(m.first_name, null);
+      const ln = dispLast(m.last_name);
+      const infoMeta = [m.chamber, m.state].filter(Boolean).join(' \u00b7 ');
+      return `<div class="member-card" onclick="filterByMember('${esc(m.last_name)}', '${esc(m.first_name)}')">
+        <div class="member-name">${esc(ln)}, ${esc(fn)}</div>
+        <div class="member-meta">${infoMeta}${infoMeta && pHtml ? ' · ' : ''}${pHtml || ''}</div>
+      </div>`;
+    }).join('') || '<div class="empty">No members found</div>';
+  }, 200);
+}
+
+function filterByMember(last, first) {
+  pickMember(last, first);
+}
+
+// ── SQL Panel ────────────────────────────────────────────────────────────────
+const TEMPLATES = {
+  top10: `SELECT last_name, first_name, chamber, COUNT(*) as holdings
+FROM holdings
+GROUP BY last_name, first_name, chamber
+ORDER BY holdings DESC
+LIMIT 10;`,
+  highval: `SELECT chamber, last_name, first_name, asset, value
+FROM holdings
+WHERE value LIKE '$1,000,001%'
+   OR value LIKE '$5,000,001%'
+ORDER BY chamber, last_name;`,
+  stocks: `SELECT chamber, last_name, first_name, asset, value, income_type
+FROM holdings
+WHERE asset_type LIKE '%Stock%'
+ORDER BY last_name;`,
+  realestate: `SELECT chamber, last_name, first_name, asset, asset_type, value
+FROM holdings
+WHERE asset_type LIKE '%Real Estate%'
+ORDER BY chamber, last_name;`,
+  hedgefunds: `SELECT chamber, last_name, first_name, asset, value
+FROM holdings
+WHERE asset_type LIKE '%Hedge Fund%'
+ORDER BY chamber, last_name;`,
+  scotus: `SELECT last_name, first_name, asset, asset_type, value, income_type
+FROM holdings
+WHERE chamber = 'SCOTUS'
+ORDER BY last_name, asset;`,
+  executive: `SELECT last_name, first_name, asset, asset_type, value, income_type
+FROM holdings
+WHERE chamber = 'Executive'
+ORDER BY asset;`,
+  senate_stocks: `SELECT last_name, first_name, state, asset, value, income_type
+FROM holdings
+WHERE chamber = 'Senate'
+  AND asset_type LIKE '%Stock%'
+ORDER BY last_name;`,
+  by_chamber: `SELECT chamber, asset_type, COUNT(*) as count
+FROM holdings
+WHERE asset_type != ''
+GROUP BY chamber, asset_type
+ORDER BY chamber, count DESC;`,
+  income_cg: `SELECT chamber, last_name, first_name, asset, value, income_type
+FROM holdings
+WHERE income_type LIKE '%Capital Gains%'
+ORDER BY chamber, last_name;`,
+  search_ticker: `SELECT chamber, last_name, first_name, asset, asset_type, value
+FROM holdings
+WHERE asset LIKE '%NVDA%'
+   OR asset LIKE '%Nvidia%'
+ORDER BY last_name;`,
+
+  // Transactions
+  recent_tx: `SELECT chamber, last_name, first_name, transaction_date, asset, transaction_type, amount, ticker
+FROM transactions
+WHERE transaction_date >= '2025-01-01'
+ORDER BY transaction_date DESC
+LIMIT 100;`,
+
+  big_tx: `SELECT chamber, last_name, first_name, transaction_date, asset, transaction_type, amount, ticker
+FROM transactions
+WHERE amount LIKE '$1,000,001%'
+   OR amount LIKE '$5,000,001%'
+   OR amount LIKE 'Over $1,000,000'
+ORDER BY transaction_date DESC;`,
+
+  tx_member: `SELECT transaction_date, asset, transaction_type, amount, ticker, comment
+FROM transactions
+WHERE last_name = 'Pelosi'
+ORDER BY transaction_date DESC;`,
+
+  // Committees
+  committee_holdings: `SELECT h.last_name, h.first_name, h.state, h.asset, h.asset_type, h.value
+FROM holdings h
+JOIN committee_members cm
+  ON LOWER(h.last_name) = LOWER(cm.last_name)
+ AND LOWER(h.first_name) = LOWER(cm.first_name)
+JOIN committees c ON cm.thomas_id = c.thomas_id
+WHERE c.name LIKE '%Science%'
+  AND c.parent_id IS NULL
+ORDER BY h.last_name;`,
+
+  financial_svc: `SELECT h.last_name, h.first_name, h.asset, h.asset_type, h.value
+FROM holdings h
+JOIN committee_members cm
+  ON LOWER(h.last_name) = LOWER(cm.last_name)
+ AND LOWER(h.first_name) = LOWER(cm.first_name)
+JOIN committees c ON cm.thomas_id = c.thomas_id
+WHERE c.name LIKE '%Financial Services%'
+  AND c.parent_id IS NULL
+ORDER BY h.last_name;`,
+
+  armed_svc: `SELECT h.last_name, h.first_name, h.asset, h.asset_type, h.value
+FROM holdings h
+JOIN committee_members cm
+  ON LOWER(h.last_name) = LOWER(cm.last_name)
+ AND LOWER(h.first_name) = LOWER(cm.first_name)
+JOIN committees c ON cm.thomas_id = c.thomas_id
+WHERE (c.name LIKE '%Armed Services%' OR c.name LIKE '%Defense%')
+  AND c.parent_id IS NULL
+ORDER BY h.last_name;`
+};
+
+function loadTemplate() {
+  const key = document.getElementById('template-select').value;
+  if (key && TEMPLATES[key]) {
+    document.getElementById('sql-input').value = TEMPLATES[key];
+    document.getElementById('template-select').value = '';
+    document.getElementById('sql-error').style.display = 'none';
+  }
+}
+
+async function runSQL() {
+  const sql = document.getElementById('sql-input').value;
+  document.getElementById('sql-loading').classList.add('active');
+  document.getElementById('sql-error').style.display = 'none';
+  const res = await fetch('/api/sql', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({sql})
+  }).then(r => r.json());
+  document.getElementById('sql-loading').classList.remove('active');
+
+  if (res.error) {
+    const eb = document.getElementById('sql-error');
+    eb.textContent = res.error;
+    eb.style.display = 'block';
+    document.getElementById('sql-count').textContent = '';
+    return;
+  }
+  sqlResults = res;
+  document.getElementById('sql-count').textContent = `${res.count.toLocaleString()} rows`;
+
+  const thead = document.getElementById('sql-thead');
+  thead.innerHTML = '<tr>' + res.columns.map(c => `<th>${esc(c)}</th>`).join('') + '</tr>';
+  const tbody = document.getElementById('sql-tbody');
+  if (!res.rows.length) {
+    tbody.innerHTML = '<tr><td colspan="' + res.columns.length + '" class="empty">No rows returned</td></tr>';
+    return;
+  }
+  tbody.innerHTML = res.rows.map(row =>
+    '<tr>' + res.columns.map(c => `<td class="trunc" title="${esc(String(row[c]??''))}">${esc(String(row[c]??''))}</td>`).join('') + '</tr>'
+  ).join('');
+}
+
+function exportSqlCSV() {
+  if (!sqlResults || !sqlResults.rows.length) { alert('Run a query first'); return; }
+  const rows = sqlResults.rows;
+  const cols = sqlResults.columns;
+  const lines = [cols.join(','), ...rows.map(r => cols.map(c => JSON.stringify(r[c]??'')).join(','))];
+  download(lines.join('\n'), 'sql_export.csv');
+}
+
+function exportCSV() {
+  const p = {...lastParams};
+  delete p.limit; delete p.offset;
+  const qs = new URLSearchParams(p).toString();
+  window.location = '/api/export?' + qs;
+}
+
+// ── Util ──────────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function download(content, filename) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], {type:'text/csv'}));
+  a.download = filename;
+  a.click();
+}
+
+// ── Transactions panel ───────────────────────────────────────────────────────
+let txOffset = 0, txTotal = 0, txLoading = false, txDone = false;
+let txSortCol = null, txSortDir = 1;
+const TX_BATCH = 200;
+let lastTxParams = {};
+
+async function doTxSearch() {
+  txOffset = 0; txDone = false;
+  document.getElementById('tx-body').innerHTML = '';
+  document.getElementById('tx-count').textContent = '';
+  document.getElementById('tx-visible-range').textContent = '';
+  await _fetchTxBatch();
+}
+
+async function _fetchTxBatch() {
+  if (txLoading || txDone) return;
+  txLoading = true;
+  const ptRadio = document.querySelector('[name="qf-party"]:checked');
+  const params = {
+    member:    document.getElementById('tx-member').value,
+    asset:     document.getElementById('tx-asset').value,
+    asset_type: (document.getElementById('f-atype-cb').value || ''),
+    chamber:   document.getElementById('tx-chamber').value,
+    tx_type:   document.getElementById('tx-type').value,
+    date_from: document.getElementById('tx-date-from').value,
+    date_to:   document.getElementById('tx-date-to').value,
+    party:     ptRadio ? ptRadio.value : '',
+    state:     document.getElementById('qf-state-picker')?.dataset.val || '',
+    sort_col: txSortCol || '',
+    sort_dir: txSortDir > 0 ? 'asc' : 'desc',
+    limit: TX_BATCH, offset: txOffset
+  };
+  lastTxParams = {...params};
+  document.getElementById('tx-loading').classList.add('active');
+  const qs = new URLSearchParams(params).toString();
+  const data = await fetch('/api/transactions?' + qs).then(r => r.json());
+  document.getElementById('tx-loading').classList.remove('active');
+
+  if (data.message) {
+    document.getElementById('tx-body').innerHTML =
+      `<tr><td colspan="9" class="empty">${esc(data.message)}</td></tr>`;
+    document.getElementById('tx-count').textContent = '';
+    txLoading = false; txDone = true; return;
+  }
+
+  txTotal = data.total;
+  if (!data.rows.length && txOffset === 0) {
+    document.getElementById('tx-body').innerHTML = '<tr><td colspan="10" class="empty">No transactions found</td></tr>';
+    txLoading = false; txDone = true;
+    updateTxMeta(); return;
+  }
+  appendTxRows(data.rows);
+  txOffset += data.rows.length;
+  if (data.rows.length < TX_BATCH || txOffset >= txTotal) txDone = true;
+  txLoading = false;
+  updateTxMeta();
+}
+
+function updateTxMeta() {
+  const base = `<span class="count">${txTotal.toLocaleString()}</span> transactions`;
+  const loaded = txOffset < txTotal
+    ? ` — loaded ${txOffset.toLocaleString()} / ${txTotal.toLocaleString()}`
+    : '';
+  document.getElementById('tx-count').innerHTML = base + (txTotal > TX_BATCH ? loaded : '');
+}
+
+function updateTxVisibleRange() {
+  const wrap = document.getElementById('tx-wrap');
+  if (!wrap || !txTotal) return;
+  const rows = wrap.querySelectorAll('tbody tr');
+  if (!rows.length) return;
+  const top = wrap.scrollTop, bot = top + wrap.clientHeight;
+  let first = null, last = null;
+  for (let i = 0; i < rows.length; i++) {
+    const rt = rows[i].offsetTop, rb = rt + rows[i].offsetHeight;
+    if (rb > top && rt < bot) { if (first === null) first = i + 1; last = i + 1; }
+    else if (first !== null) break;
+  }
+  document.getElementById('tx-visible-range').textContent =
+    (txTotal > 20 && first !== null)
+      ? `Viewing ${first.toLocaleString()}–${last.toLocaleString()} of ${txTotal.toLocaleString()}` : '';
+}
+
+function appendTxRows(rows) {
+  const tbody = document.getElementById('tx-body');
+  const cc = {House:'badge-House',Senate:'badge-Senate',Executive:'badge-Executive'};
+  const tc = {Purchase:'color:var(--green)',
+              'Sale (Full)':'color:var(--red)',
+              'Sale (Partial)':'color:var(--red)',
+              Exchange:'color:var(--yellow)'};
+  const html = rows.map(r => {
+    const dL = dispLast(r.last_name);
+    const dF = dispFirst(r.first_name, r.display_first);
+    const effParty = r.chamber === 'SCOTUS' ? scotusParty(r.last_name) : r.party;
+    return `<tr>
+    <td><span class="badge ${cc[r.chamber]||''}">${esc(r.chamber||'')}</span></td>
+    <td class="trunc" style="max-width:140px">${esc(dL)}, ${esc(dF)}</td>
+    <td style="white-space:nowrap">${partyBadge(effParty)}</td>
+    <td style="color:var(--muted)">${esc(r.state||'')}</td>
+    <td style="white-space:nowrap">${esc(r.transaction_date||'')}</td>
+    <td class="trunc" title="${esc(r.asset||'')}">${esc(r.asset||'')}</td>
+    <td style="color:var(--muted);font-size:11px">${esc(r.asset_type||'')}</td>
+    <td style="white-space:nowrap;${tc[r.transaction_type]||''}">${esc(r.transaction_type||'')}</td>
+    <td style="color:var(--yellow);white-space:nowrap">${esc(r.amount||'')}</td>
+    <td style="color:var(--accent)">${esc(r.ticker||'')}</td>
+  </tr>`;}).join('');
+  tbody.insertAdjacentHTML('beforeend', html);
+}
+
+function resetTxSearch() {
+  ['tx-member','tx-asset','tx-date-from','tx-date-to'].forEach(id => document.getElementById(id).value = '');
+  ['tx-chamber','tx-type'].forEach(id => document.getElementById(id).value = '');
+  doTxSearch();
+}
+
+async function exportTxCSV() {
+  // Fetch up to 5000 rows with current filters, then export as CSV client-side
+  const p = {...lastTxParams};
+  p.limit = 5000; p.offset = 0;
+  const data = await fetch('/api/transactions?' + new URLSearchParams(p)).then(r => r.json());
+  document.getElementById('tx-loading').classList.remove('active');
+
+  if (data.message) {
+    document.getElementById('tx-body').innerHTML =
+      `<tr><td colspan="9" class="empty">${esc(data.message)}</td></tr>`;
+    document.getElementById('tx-count').textContent = '';
+    txLoading = false; txDone = true; return;
+  }
+
+  txTotal = data.total;
+  if (!data.rows.length && txOffset === 0) {
+    document.getElementById('tx-body').innerHTML = '<tr><td colspan="10" class="empty">No transactions found</td></tr>';
+    txLoading = false; txDone = true;
+    updateTxMeta(); return;
+  }
+  appendTxRows(data.rows);
+  txOffset += data.rows.length;
+  if (data.rows.length < TX_BATCH || txOffset >= txTotal) txDone = true;
+  txLoading = false;
+  updateTxMeta();
+}
+
+function updateTxMeta() {
+  const base = `<span class="count">${txTotal.toLocaleString()}</span> transactions`;
+  const loaded = txOffset < txTotal
+    ? ` — loaded ${txOffset.toLocaleString()} / ${txTotal.toLocaleString()}`
+    : '';
+  document.getElementById('tx-count').innerHTML = base + (txTotal > TX_BATCH ? loaded : '');
+}
+
+function updateTxVisibleRange() {
+  const wrap = document.getElementById('tx-wrap');
+  if (!wrap || !txTotal) return;
+  const ROW_H = 35;
+  const first = Math.max(1, Math.floor(wrap.scrollTop / ROW_H) + 1);
+  const last  = Math.min(first + Math.ceil(wrap.clientHeight / ROW_H) - 1, txTotal);
+  document.getElementById('tx-visible-range').textContent =
+    txTotal > 20 ? `Viewing ${first.toLocaleString()}–${last.toLocaleString()} of ${txTotal.toLocaleString()}` : '';
+}
+
+
+
+function resetTxSearch() {
+  ['tx-member','tx-asset','tx-date-from','tx-date-to'].forEach(id => document.getElementById(id).value = '');
+  ['tx-chamber','tx-type'].forEach(id => document.getElementById(id).value = '');
+  doTxSearch();
+}
+
+async function exportTxCSV() {
+  // Fetch up to 5000 rows with current filters, then export as CSV client-side
+  const p = {...lastTxParams};
+  p.limit = 5000; p.offset = 0;
+  const data = await fetch('/api/transactions?' + new URLSearchParams(p)).then(r => r.json());
+  if (!data.rows || !data.rows.length) { alert('No transactions to export'); return; }
+  const cols = ['chamber','last_name','first_name','state','transaction_date','disclosure_date',
+                'asset','asset_type','transaction_type','amount','ticker','comment'];
+  const lines = [cols.join(','), ...data.rows.map(r =>
+    cols.map(c => JSON.stringify(r[c] ?? '')).join(','))];
+  download(lines.join('\n'), 'transactions_export.csv');
+}
+
+// ── Ask panel ────────────────────────────────────────────────────────────────
+async function initAskExamples() {
+  const examples = await fetch('/api/ask_examples').then(r => r.json());
+  const container = document.getElementById('ask-examples');
+  examples.slice(0, 8).forEach(ex => {
+    const btn = document.createElement('button');
+    btn.className = 'reset-btn';
+    btn.style.cssText = 'font-size:11px;padding:4px 10px;max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+    btn.title = ex;
+    btn.textContent = ex;
+    btn.onclick = () => { document.getElementById('ask-input').value = ex; submitAsk(); };
+    container.appendChild(btn);
+  });
+}
+
+async function submitAsk() {
+  const question = document.getElementById('ask-input').value.trim();
+  if (!question) return;
+
+  document.getElementById('ask-loading').classList.add('active');
+  document.getElementById('ask-error').style.display = 'none';
+  document.getElementById('ask-answer').style.display = 'none';
+  document.getElementById('ask-table-wrap').style.display = 'none';
+
+  try {
+    const res = await fetch('/api/ask', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({question})
+    }).then(r => r.json());
+
+    document.getElementById('ask-loading').classList.remove('active');
+
+    if (res.error) {
+      const eb = document.getElementById('ask-error');
+      eb.textContent = res.error; eb.style.display = 'block'; return;
+    }
+
+    // Show answer
+    document.getElementById('ask-q-display').textContent = '❓ ' + question;
+    document.getElementById('ask-answer-text').textContent = res.answer || '';
+    document.getElementById('ask-sql').textContent = res.sql || '(no SQL generated)';
+    const cavEl = document.getElementById('ask-caveats');
+    if (res.caveats) { cavEl.textContent = '⚠ ' + res.caveats; cavEl.style.display = 'block'; }
+    else { cavEl.style.display = 'none'; }
+    document.getElementById('ask-answer').style.display = 'block';
+
+    // Show data table if rows returned
+    if (res.rows && res.rows.length && res.columns && res.columns.length) {
+      document.getElementById('ask-row-count').textContent =
+        `${res.total_rows} row${res.total_rows !== 1 ? 's' : ''} returned`;
+      document.getElementById('ask-thead').innerHTML =
+        '<tr>' + res.columns.map(c => `<th>${esc(c)}</th>`).join('') + '</tr>';
+      document.getElementById('ask-tbody').innerHTML = res.rows.map(row =>
+        '<tr>' + res.columns.map(c => `<td class="trunc" title="${esc(String(row[c]??''))}">${esc(String(row[c]??''))}</td>`).join('') + '</tr>'
+      ).join('');
+      document.getElementById('ask-table-wrap').style.display = 'block';
+    }
+  } catch(e) {
+    document.getElementById('ask-loading').classList.remove('active');
+    const eb = document.getElementById('ask-error');
+    eb.textContent = 'Request failed: ' + e.message; eb.style.display = 'block';
+  }
+}
+
+// ── Sort: server-side (reloads from offset 0 with new ORDER BY) ─────────────
+function sortBy(col) {
+  if (sortCol === col) sortDir *= -1;
+  else { sortCol = col; sortDir = 1; }
+  document.querySelectorAll('#results-table thead th').forEach(th => {
+    th.classList.remove('sort-asc','sort-desc');
+    if (th.dataset.col === col)
+      th.classList.add(sortDir === 1 ? 'sort-asc' : 'sort-desc');
+  });
+  doSearch();
+}
+
+function sortTxBy(col) {
+  if (txSortCol === col) txSortDir *= -1;
+  else { txSortCol = col; txSortDir = -1; }
+  document.querySelectorAll('#tx-table thead th').forEach(th => {
+    th.classList.remove('sort-asc','sort-desc');
+    if (th.dataset.col === col)
+      th.classList.add(txSortDir === 1 ? 'sort-asc' : 'sort-desc');
+  });
+  doTxSearch();
+}
+
+// ── Sidebar state picker ─────────────────────────────────────────────────────
+function toggleStatePicker(e) {
+  e.stopPropagation();
+  const btn  = document.getElementById('qf-state-btn');
+  const list = document.getElementById('qf-state-list');
+  const open = list.classList.toggle('open');
+  btn.classList.toggle('open', open);
+}
+function pickState(val) {
+  document.getElementById('qf-state-picker').dataset.val = val;
+  document.getElementById('qf-state-display').textContent = val || 'All states';
+  const btn = document.getElementById('qf-state-btn');
+  btn.classList.remove('open');
+  btn.classList.toggle('has-value', !!val);
+  document.getElementById('qf-state-list').classList.remove('open');
+  document.querySelectorAll('.state-opt').forEach(o =>
+    o.classList.toggle('is-active', o.dataset.val === val));
+  applyQfFilters();
+}
+document.addEventListener('click', () => {
+  document.getElementById('qf-state-btn')?.classList.remove('open');
+  document.getElementById('qf-state-list')?.classList.remove('open');
+});
+
+// ── Infinite scroll: IntersectionObserver for load-more sentinels ────────────
+(function() {
+  function makeObs(wrapperId, fetchFn) {
+    const wrap = document.getElementById(wrapperId);
+    const sentinel = document.getElementById(wrapperId.replace('-wrap', '-sentinel'));
+    if (!wrap || !sentinel) return;
+    const obs = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting) fetchFn();
+    }, { root: wrap, rootMargin: '200px', threshold: 0 });
+    obs.observe(sentinel);
+    wrap.addEventListener('scroll', wrapperId === 'search-wrap' ? updateSearchVisibleRange : updateTxVisibleRange, { passive: true });
+  }
+  // Set up after DOM is ready (called after init so wraps exist)
+  window._setupScrollObs = function() {
+    makeObs('search-wrap', _fetchSearchBatch);
+    makeObs('tx-wrap', _fetchTxBatch);
+  };
+})();
+
+initAskExamples();
+init().then(() => window._setupScrollObs && window._setupScrollObs());
+</script>
+</body>
+</html>
+
