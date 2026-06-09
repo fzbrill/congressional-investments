@@ -61,6 +61,8 @@ Then open http://localhost:5050.
 
 ### Refresh existing data
 
+> **Note:** `refresh.py` is untested. Use the individual scripts above instead until this is verified.
+
 ```
 python refresh.py           # full refresh
 python refresh.py --ptrs    # PTR transactions only
